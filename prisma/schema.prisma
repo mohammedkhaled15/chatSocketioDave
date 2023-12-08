@@ -1,0 +1,43 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userId   String         @id @default(cuid()) @map("_id")
+  username String         @unique
+  socketId String
+  messages Message[]
+  rooms    UsersInRooms[]
+}
+
+model UsersInRooms {
+  roomAndUserId  String @id @default(cuid()) @map("_id")
+  usernameInRoom String
+  users          User   @relation(fields: [usernameInRoom], references: [username])
+  roomForUser    String
+  rooms          Room   @relation(fields: [roomForUser], references: [roomName])
+}
+
+model Room {
+  roomId   String         @id @default(cuid()) @map("_id")
+  roomName String         @unique
+  messages Message[]
+  users    UsersInRooms[]
+}
+
+model Message {
+  msgId                    String @id @default(cuid()) @map("_id")
+  content                  String
+  senderUser               String
+  sender                   User   @relation(fields: [senderUser], references: [username])
+  roomWhichContainMessages String
+  room                     Room   @relation(fields: [roomWhichContainMessages], references: [roomId])
+}
