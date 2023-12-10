@@ -11,19 +11,22 @@ datasource db {
 }
 
 model User {
-  userId   String         @id @default(cuid()) @map("_id")
-  username String         @unique
-  socketId String
-  messages Message[]
-  rooms    UsersInRooms[]
+  userId     String         @id @default(cuid()) @map("_id")
+  username   String         @unique
+  socketId   String         @unique
+  activeRoom String
+  messages   Message[]
+  rooms      UsersInRooms[]
 }
 
 model UsersInRooms {
   roomAndUserId  String @id @default(cuid()) @map("_id")
-  usernameInRoom String
+  usernameInRoom String @unique
   users          User   @relation(fields: [usernameInRoom], references: [username])
-  roomForUser    String
+  roomForUser    String @unique
   rooms          Room   @relation(fields: [roomForUser], references: [roomName])
+
+  @@unique([usernameInRoom, roomForUser])
 }
 
 model Room {

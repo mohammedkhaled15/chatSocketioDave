@@ -11,7 +11,11 @@ const chatDisplay = document.querySelector(".chat-display");
 function sendMessage(e) {
   e.preventDefault();
   if (nameInput.value && chatRoom.value && msgInput.value) {
-    socket.emit("message", { username: nameInput.value, text: msgInput.value });
+    socket.emit("message", {
+      username: nameInput.value,
+      text: msgInput.value,
+      socketId: socket.id,
+    });
     msgInput.value = "";
     msgInput.focus();
   }
@@ -30,7 +34,7 @@ function enterRoom(e) {
 document.querySelector(".form-join").addEventListener("submit", enterRoom);
 document.querySelector(".form-msg").addEventListener("submit", sendMessage);
 msgInput.addEventListener("keypress", () => {
-  socket.emit("activity", nameInput.value);
+  socket.emit("activity", { username: nameInput.value, socketId: socket.id });
 });
 
 socket.on("message", (data) => {
@@ -39,7 +43,7 @@ socket.on("message", (data) => {
   const li = document.createElement("li");
   li.className = "post";
   if (name === nameInput.value) li.className = "post post--left";
-  if (name == nameInput.value && name !== "Admin")
+  if (name !== nameInput.value && name !== "Admin")
     li.className = "post post--right";
   if (name !== "Admin") {
     li.innerHTML = `<div class="post__header ${
@@ -56,20 +60,23 @@ socket.on("message", (data) => {
   document.querySelector("ul").appendChild(li);
 });
 
-socket.on("usersList", (data) => {
-  userList.textContent = `Active Users in ${
-    data[0].joinedRoom
-  } chat Room: ${data.map((user, i) => {
-    return i === data.length - 1 ? `${user.username}.` : `${user.username}, `;
-  })}`;
+socket.on("usersList", ({ roomName, users }) => {
+  userList.textContent = `Active Users in ${roomName} chat Room: ${users.map(
+    (user, i) => {
+      return i === users.length - 1
+        ? ` ${user.usernameInRoom}.`
+        : `${user.usernameInRoom}`;
+    }
+  )}`;
 });
-socket.on("activeRooms", (data) => {
-  console.log(data);
-  // userList.textContent = `Active rooms now for you: ${data.map(
-  //   (room, i) => {
-  //     return i === data.length - 1 ? `${user.username}.` : `${user.username}, `;
-  //   }
-  // )}`;
+
+socket.on("activeRooms", ({ rooms }) => {
+  console.log(rooms);
+  roomList.textContent = `Active rooms now for you: ${rooms.map((room, i) => {
+    return i === rooms.length - 1
+      ? ` ${room.roomForUser}.`
+      : `${room.roomForUser}`;
+  })}`;
 });
 
 let activityTimer;

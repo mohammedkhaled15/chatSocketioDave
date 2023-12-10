@@ -1,4 +1,4 @@
-import prisma from "./dbConnection/connectDb.js";
+import prisma from "./dbConnection/connectDb.mjs";
 
 //build Msg
 export function buildMsg(name, text) {
@@ -16,59 +16,57 @@ export function buildMsg(name, text) {
 //activate new user
 export async function activateUser(username, socketId, joinedRoom) {
   try {
-    // const upsertedRoom = await prisma.room.upsert({
-    //   where: {
-    //     roomName: joinedRoom,
-    //   },
-    //   update: {},
-    //   create: {
-    //     roomName: joinedRoom,
-    //   },
-    // });
-
-    // const upsertedUser = await prisma.user.upsert({
-    //   where: {
-    //     username,
-    //   },
-    //   update: {
-    //     socketId,
-    //     joinedRoom,
-    //   },
-    //   create: {
-    //     socketId,
-    //     username,
-    //     joinedRoom,
-    //   },
-    // });
-
-    const newUser = await prisma.user.create({ data: { username, socketId } });
-    const newRoom = await prisma.room.create({
-      data: { roomName: joinedRoom },
+    const newRoom = await prisma.room.upsert({
+      where: {
+        roomName: joinedRoom,
+      },
+      update: {},
+      create: {
+        roomName: joinedRoom,
+      },
     });
-    const activeUserInRoom = await prisma.usersInRooms.create({
-      data: { usernameInRoom: username, roomForUser: joinedRoom },
+
+    const newUser = await prisma.user.upsert({
+      where: {
+        username,
+      },
+      update: {
+        socketId,
+        activeRoom: joinedRoom,
+      },
+      create: {
+        socketId,
+        username,
+        activeRoom: joinedRoom,
+      },
+    });
+    const activeUserInRoom = await prisma.usersInRooms.upsert({
+      where: { usernameInRoom: username, roomForUser: joinedRoom },
+      update: {},
+      create: { usernameInRoom: username, roomForUser: joinedRoom },
     });
     return { newUser, newRoom, activeUserInRoom };
   } catch (error) {
-    console.log(error);
+    console.log("Error in creating user or room ", error);
   }
 }
 
 //get User by username
-export async function getUser(username) {
+export async function getUserBySocketId(socketId) {
   try {
-    const user = await prisma.user.findUnique({ where: { username } });
+    const user = await prisma.user.findUnique({ where: { socketId } });
     return user;
   } catch (error) {
-    console.log("error getting user by id");
+    console.log("error getting user by id", error);
   }
 }
 
 //get active user in room
-export async function getActiveUserInRoom(roomForUser) {
+export async function getActiveUserInRoom(roomName) {
   try {
-    const data = await prisma.usersInRooms.findMany({
-      where: { roomForUser },
+    const data = await prisma.room.findUnique({
+      where: { roomName },
+      include: { users: true },
     });
     return data;
   } catch (error) {
@@ -77,23 +75,26 @@ export async function getActiveUserInRoom(roomForUser) {
 }
 
 //get active rooms for certain user
-export async function getRoomsForUsers(socketId, roomName) {
+export async function getRoomsForUsers(username) {
   try {
     const rooms = await prisma.user.findUnique({
-      where: { socketId },
-      include: { roomList },
+      where: { username },
+      include: { rooms: true },
     });
-  } catch (error) {}
+    // console.log(rooms);
+    return rooms;
+  } catch (error) {
+    console.log("Error from getting list of active rooms for user", error);
+  }
 }
 
 //deactivating user from app
-export async function leavesPrevRoom(username, newRoom) {
+export async function leavesRoom(usernameInRoom, roomForUser) {
   try {
-    await prisma.user.update({
-      where: { username },
-      data: { joinedRoom: newRoom },
+    await prisma.UsersInRooms.delete({
+      where: { usernameInRoom, roomForUser },
     });
   } catch (err) {
-    console.log("Error updating user");
+    console.log("Error leaving room user");
   }
 }

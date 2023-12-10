@@ -7,8 +7,9 @@ import {
   activateUser,
   buildMsg,
   getActiveUserInRoom,
-  getUser,
-  getUsersInRoom,
+  getRoomsForUsers,
+  getUserBySocketId,
+  leavesRoom,
 } from "./actions.mjs";
 dotenv.config();
 
@@ -42,16 +43,6 @@ io.on("connection", (socket) => {
   socket.emit("message", buildMsg(ADMIN, "Welcome To Chat App!"));
 
   socket.on("enterRoom", async ({ username, joinedRoom }) => {
-    // //if there is a prev room
-    // const prevRoom = await getUser(username,joinedRoom)?.joinedRoom;
-    // if (prevRoom) {
-    //   socket.leave(prevRoom);
-    //   io.to(prevRoom).emit(
-    //     "message",
-    //     buildMsg(ADMIN, `${username} has left the room!`)
-    //   );
-    // }
-
     //create User with new joined room
     const { newUser, newRoom, activeUserInRoom } = await activateUser(
       username,
@@ -77,32 +68,48 @@ io.on("connection", (socket) => {
       );
 
     //updating usersList in this room
-    io.to(newRoom.roomName).emit(
-      "usersList",
-      await getActiveUserInRoom(newRoom.roomName)
-    );
-    io.to(newUser.userName).emit("activeRooms", await getRoomsForUsers());
+    const activeUsers = await getActiveUserInRoom(newRoom.roomName);
+    io.to(newRoom.roomName).emit("usersList", activeUsers);
+
+    //updating activeRooms in this room
+    const activeRooms = await getRoomsForUsers(newUser.username);
+    socket.emit("activeRooms", activeRooms);
   });
 
-  // //All users except user himself
-  // socket.broadcast.emit("message", `${socket.id.substring(0, 5)} is Connected`);
+  //if socket disconnected
+  socket.on("disconnect", async () => {
+    const user = await getUserBySocketId(socket.id);
+    if (user) {
+      io.to(user.activeRoom).emit(
+        "message",
+        buildMsg(ADMIN, `${user.username} has left this Chat Room`)
+      );
+      await leavesRoom(user.username, user.activeRoom);
+      socket.leave(user.activeRoom);
+      //updating usersList in this room
+      const activeUsers = await getActiveUserInRoom(user.activeRoom);
+      io.to(user.activeRoom).emit("usersList", activeUsers);
 
-  // //listening to message event
-  // socket.on("message", (data) => {
-  //   console.log(`${data}`);
-  //   io.emit("message", `${socket.id.substring(0, 5)}: ${data}`);
-  // });
+      // updating activeRooms for the user
+      const activeRooms = await getRoomsForUsers(user.username);
+      // io.to(user.activeRoom).emit("activeRooms", activeRooms);
+      io.to(user.activeRoom).emit("activeRooms", activeRooms);
+    }
+  });
 
-  // //when user disconnects
-  // socket.on("disconnect", () => {
-  //   socket.broadcast.emit(
-  //     "message",
-  //     buildMsg(ADMIN, `${socket.id.substring(0, 5)} is disconnected`)
-  //   );
-  // });
-
+  socket.on("message", async ({ username, text, socketId }) => {
+    const user = await getUserBySocketId(socketId);
+    const room = user?.activeRoom;
+    if (room) {
+      io.to(room).emit("message", buildMsg(username, text));
+    }
+  });
   //listen for activity
-  socket.on("activity", (name) => {
-    socket.broadcast.emit("activity", name);
+  socket.on("activity", async ({ username, socketId }) => {
+    const user = await getUserBySocketId(socketId);
+    const room = user?.activeRoom;
+    if (room) {
+      socket.broadcast.to(room).emit("activity", username);
+    }
   });
 });
